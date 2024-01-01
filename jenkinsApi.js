@@ -30,6 +30,9 @@ async function processJobData(builds) {
     let successCount = 0;
     let failCount = 0;
     let userActivity = {}; // New object to track user activity
+    let dailyActivity = {};
+    let jobDurations = [];
+
 
     if (!Array.isArray(builds)) {
         console.error('Invalid input: builds is not an array');
@@ -50,13 +53,21 @@ async function processJobData(builds) {
                 const userName = userAction.causes[0].userName;
                 userActivity[userName] = (userActivity[userName] || 0) + 1;
             }
+
+            const date = new Date(buildData.timestamp);
+            const day = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+            dailyActivity[day] = (dailyActivity[day] || 0) + 1;
+
+            jobDurations.push({ jobName: buildData.fullDisplayName, duration: buildData.duration });
+
+
         } catch (error) {
             console.error(`Error fetching build data from ${build.url}:`, error);
         }
     }
     console.log(successCount)
     console.log(failCount)
-    return { successCount, failCount, userActivity };
+    return { successCount, failCount, userActivity, dailyActivity, jobDurations };
 }
 
 module.exports = { getJenkinsJobData, processJobData };
