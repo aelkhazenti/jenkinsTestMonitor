@@ -28,14 +28,25 @@ app.get('/', async (req, res) => {
                 allPipelineData.push({ url, successCount: 0, failCount: 0, jobName, userActivity: {}, dailyActivity: {}, jobDurations: [] });
             }
         }
-
+        
+        let summaryLinks = '';
         let canvasElements = '';
         let chartScripts = '';
 
         allPipelineData.forEach((pipeline, pipelineIndex) => {
+
+            summaryLinks += `<li><a href="#job-section-${pipelineIndex}">${pipeline.jobName}</a></li>`;
+
+
+            // Main title for each job
+            canvasElements += `<div class="job-section" id="job-section-${pipelineIndex}">
+
+                                   <h2>${pipeline.jobName}</h2>
+                                   <div class="chart-row">`;
+
             // Build status chart
             canvasElements += `<div class="chart">
-                                   <h3>${pipeline.jobName} - Build Status</h3>
+                                   <h3>Build Status</h3>
                                    <canvas id="buildChart${pipelineIndex}"></canvas>
                                </div>`;
             chartScripts += `
@@ -67,7 +78,7 @@ app.get('/', async (req, res) => {
             const backgroundColors = userNames.map((_, index) => generateColor(index));
 
             canvasElements += `<div class="chart">
-                                   <h3>${pipeline.jobName} - User Activity</h3>
+                                   <h3>User Activity</h3>
                                    <canvas id="userActivityChart${pipelineIndex}"></canvas>
                                </div>`;
             chartScripts += `
@@ -98,7 +109,7 @@ app.get('/', async (req, res) => {
             const activityCounts = Object.values(pipeline.dailyActivity);
 
             canvasElements += `<div class="chart">
-                                   <h3>${pipeline.jobName} - Daily Activity</h3>
+                                   <h3>Daily Activity</h3>
                                    <canvas id="dailyActivityChart${pipelineIndex}"></canvas>
                                </div>`;
             chartScripts += `
@@ -129,7 +140,7 @@ app.get('/', async (req, res) => {
             const jobTimes = pipeline.jobDurations.map(job => job.duration);
 
             canvasElements += `<div class="chart">
-                                   <h3>${pipeline.jobName} - Job Duration</h3>
+                                   <h3>Job Duration</h3>
                                    <canvas id="jobDurationChart${pipelineIndex}"></canvas>
                                </div>`;
             chartScripts += `
@@ -154,6 +165,8 @@ app.get('/', async (req, res) => {
                         }
                     }
                 });`;
+
+            canvasElements += `</div></div>`; // Close the chart row and job section
         });
 
         res.send(`
@@ -167,11 +180,36 @@ app.get('/', async (req, res) => {
                         flex-wrap: wrap;
                         justify-content: space-around;
                     }
+                    .chart-row {
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-around;
+                    }
                     .chart {
                         flex: 1;
-                        min-width: 600px;
-                        max-width: 750px;
+                        min-width: 45%;
+                        max-width: 50%;
                         margin: 10px;
+                    }
+                    .job-section {
+                        border: 1px solid #ddd;
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .job-section h2 {
+                        text-align: center;
+                    }
+                    #summary {
+                        list-style: none;
+                        padding: 0;
+                    }
+                    #summary li {
+                        display: inline;
+                        margin-right: 10px;
+                    }
+                    #summary a {
+                        text-decoration: none;
+                        color: blue;
                     }
                 </style>
                 <title>Jenkins Job Status</title>
@@ -179,6 +217,9 @@ app.get('/', async (req, res) => {
             </head>
             <body>
                 <h1>Jenkins Build Analysis</h1>
+                <ul id="summary">
+                    ${summaryLinks}
+                </ul>
                 <div class="chart-container">
                     ${canvasElements}
                 </div>
@@ -193,5 +234,6 @@ app.get('/', async (req, res) => {
         res.status(500).send('Error processing Jenkins data');
     }
 });
+
 
 module.exports = app;
