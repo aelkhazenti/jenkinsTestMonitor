@@ -1,6 +1,6 @@
 // jenkinsApi.js
 const axios = require('axios');
-const authHeader = 'Basic '; // Replace with your encoded credentials
+const authHeader = 'Basic YXltYW5lOjExOTdhZTY5YTA0ZTcyNjJhMjZmYjg5MDZjODY3ODZiNTg='; // Replace with your encoded credentials
 
 async function getJenkinsJobData(pipelineUrl) {
     try {
@@ -29,10 +29,11 @@ async function getBuildData(buildUrl) {
 async function processJobData(builds) {
     let successCount = 0;
     let failCount = 0;
-    console.log(builds)
+    let userActivity = {}; // New object to track user activity
+
     if (!Array.isArray(builds)) {
         console.error('Invalid input: builds is not an array');
-        return { successCount, failCount };
+        return { successCount, failCount, userActivity };
     }
 
     for (const build of builds) {
@@ -43,13 +44,19 @@ async function processJobData(builds) {
             } else if (buildData.result === 'FAILURE') {
                 failCount++;
             }
+
+            const userAction = buildData.actions.find(action => action._class === "hudson.model.CauseAction");
+            if (userAction && userAction.causes && userAction.causes.length > 0) {
+                const userName = userAction.causes[0].userName;
+                userActivity[userName] = (userActivity[userName] || 0) + 1;
+            }
         } catch (error) {
             console.error(`Error fetching build data from ${build.url}:`, error);
         }
     }
     console.log(successCount)
     console.log(failCount)
-    return { successCount, failCount };
+    return { successCount, failCount, userActivity };
 }
 
 module.exports = { getJenkinsJobData, processJobData };
