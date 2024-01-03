@@ -16,6 +16,11 @@ function generateColor(index) {
 app.get('/', async (req, res) => {
     try {
         let allPipelineData = [];
+        let totalSuccessCount = 0;
+        let totalFailCount = 0;
+        let totalUserActivity = {};
+        let totalDailyActivity = {};
+        let totalJobDurations = [];
 
         for (const url of pipelineUrls) {
             const jobs = await getJenkinsJobData(url);
@@ -23,12 +28,23 @@ app.get('/', async (req, res) => {
 
             if (jobs && jobs.builds.length > 0) {
                 const { successCount, failCount, userActivity, dailyActivity, jobDurations } = await processJobData(jobs.builds);
+
+                totalSuccessCount += successCount;
+                totalFailCount += failCount;
+                for (const user in userActivity) {
+                    totalUserActivity[user] = (totalUserActivity[user] || 0) + userActivity[user];
+                }
+                for (const day in dailyActivity) {
+                    totalDailyActivity[day] = (totalDailyActivity[day] || 0) + dailyActivity[day];
+                }
+                totalJobDurations.push(...jobDurations.map(job => job.duration));
+
                 allPipelineData.push({ url, successCount, failCount, jobName, userActivity, dailyActivity, jobDurations });
             } else {
                 allPipelineData.push({ url, successCount: 0, failCount: 0, jobName, userActivity: {}, dailyActivity: {}, jobDurations: [] });
             }
         }
-        
+
         let summaryLinks = '';
         let canvasElements = '';
         let chartScripts = '';
@@ -168,6 +184,141 @@ app.get('/', async (req, res) => {
 
             canvasElements += `</div></div>`; // Close the chart row and job section
         });
+
+        // Aggregate charts
+        const totalUserNames = Object.keys(totalUserActivity);
+        const totalUserRequestCounts = Object.values(totalUserActivity);
+        const totalBackgroundColors = totalUserNames.map((_, index) => generateColor(index));
+
+        const totalActivityDates = Object.keys(totalDailyActivity);
+        const totalActivityCounts = Object.values(totalDailyActivity);
+        
+        let totalJobTimes = 0;
+        totalJobDurations.forEach(duration => {
+            totalJobTimes += duration;
+        });
+
+        const totalJobNames = totalJobDurations.map((_, index) => `Job ${index + 1}`);
+        
+        // Aggregate chart elements
+        canvasElements += `<div class="chart">
+                               <h3>Total Build Status</h3>
+                               <canvas id="totalBuildChart"></canvas>
+                           </div>
+                           <div class="chart">
+                               <h3>Total User Activity</h3>
+                               <canvas id="totalUserActivityChart"></canvas>
+                           </div>
+                           <div class="chart">
+                               <h3>Total Daily Activity</h3>
+                               <canvas id="totalDailyActivityChart"></canvas>
+                           </div>
+                           <div class="chart">
+                               <h3>Total Job Duration</h3>
+                               <canvas id="totalJobDurationChart"></canvas>
+                           </div>`;
+
+        
+
+
+        // Scripts for aggregate charts
+        chartScripts += `
+            // Script for Total Build Status Chart
+            const ctxTotalBuild = document.getElementById('totalBuildChart').getContext('2d');
+            new Chart(ctxTotalBuild, {
+                type: 'bar',
+                data: {
+                    labels: ['Total Successful', 'Total Failed'],
+                    datasets: [{
+                        label: 'Total Builds',
+                        data: [${totalSuccessCount}, ${totalFailCount}],
+                        backgroundColor: ['rgba(75, 192, 192, 0.2)', 'rgba(255, 99, 132, 0.2)'],
+                        borderColor: ['rgba(75, 192, 192, 1)', 'rgba(255, 99, 132, 1)'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Script for Total User Activity Chart
+            const ctxTotalUserActivity = document.getElementById('totalUserActivityChart').getContext('2d');
+            new Chart(ctxTotalUserActivity, {
+                type: 'bar',
+                data: {
+                    labels: ${JSON.stringify(totalUserNames)},
+                    datasets: [{
+                        label: 'Total Number of Requests',
+                        data: ${JSON.stringify(totalUserRequestCounts)},
+                        backgroundColor: ${JSON.stringify(totalBackgroundColors)},
+                        borderColor: ${JSON.stringify(totalBackgroundColors)},
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Script for Total Daily Activity Chart
+            const ctxTotalDailyActivity = document.getElementById('totalDailyActivityChart').getContext('2d');
+            new Chart(ctxTotalDailyActivity, {
+                type: 'line',
+                data: {
+                    labels: ${JSON.stringify(totalActivityDates)},
+                    datasets: [{
+                        label: 'Total Activity Count',
+                        data: ${JSON.stringify(totalActivityCounts)},
+                        fill: false,
+                        borderColor: 'rgb(54, 162, 235)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Script for Total Job Duration Chart
+            const ctxTotalJobDuration = document.getElementById('totalJobDurationChart').getContext('2d');
+            new Chart(ctxTotalJobDuration, {
+                type: 'bar',
+                data: {
+                    labels: ['Total Job Duration'],
+                    datasets: [{
+                        label: 'Duration (ms)',
+                        data: [${totalJobTimes}],
+                        backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        `;
+
+        // ... (remaining code)
+
+
 
         res.send(`
             <!DOCTYPE html>
